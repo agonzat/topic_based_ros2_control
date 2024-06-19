@@ -35,6 +35,7 @@
 // C++
 #include <memory>
 #include <string>
+#include <vector>
 
 // ROS
 #include <hardware_interface/handle.hpp>
@@ -61,15 +62,22 @@ public:
 
   std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
 
-  hardware_interface::return_type read(const rclcpp::Time& time, const rclcpp::Duration& period) override;
+  hardware_interface::return_type read(
+    const rclcpp::Time& time,
+    const rclcpp::Duration& period
+  ) override;
 
-  hardware_interface::return_type write(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/) override;
+  hardware_interface::return_type write(
+    const rclcpp::Time& /*time*/,
+    const rclcpp::Duration& /*period*/
+  ) override;
 
 private:
-  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr topic_based_joint_states_subscriber_;
-  rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr topic_based_joint_commands_publisher_;
+  using JointState = sensor_msgs::msg::JointState;
+  rclcpp::Subscription<JointState>::SharedPtr topic_based_joint_states_subscriber_;
+  rclcpp::Publisher<JointState>::SharedPtr topic_based_joint_commands_publisher_;
   rclcpp::Node::SharedPtr node_;
-  sensor_msgs::msg::JointState latest_joint_state_;
+  JointState latest_joint_state_;
   bool sum_wrapped_joint_states_{ false };
 
   /// Use standard interfaces for joints because they are relevant for dynamic behavior
@@ -95,8 +103,13 @@ private:
   double trigger_joint_command_threshold_ = 1e-5;
 
   template <typename HandleType>
-  bool getInterface(const std::string& name, const std::string& interface_name, const size_t vector_index,
-                    std::vector<std::vector<double>>& values, std::vector<HandleType>& interfaces);
+  bool getInterface(
+    const std::string& name,
+    const std::string& interface_name,
+    const size_t vector_index,
+    std::vector<std::vector<double>>& values,
+    std::vector<HandleType>& interfaces
+  );
 };
 
 }  // namespace topic_based_ros2_control

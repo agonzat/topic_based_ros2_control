@@ -27,6 +27,10 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 /* Author: Jafar Abdi */
+/* Modifications: Ander Gonzalez (IKERLAN S. COOP.) */
+
+#include <angles/angles.h>
+
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -34,8 +38,9 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <numeric>
+#include <utility>
 
-#include <angles/angles.h>
 #include <rclcpp/executors.hpp>
 #include <topic_based_ros2_control/topic_based_system.hpp>
 
@@ -46,7 +51,9 @@ when rotating in the positive direction */
 void sumRotationFromMinus2PiTo2Pi(const double current_wrapped_rad, double& total_rotation)
 {
   double delta = 0;
-  angles::shortest_angular_distance_with_large_limits(total_rotation, current_wrapped_rad, 2 * M_PI, -2 * M_PI, delta);
+  angles::shortest_angular_distance_with_large_limits(
+    total_rotation, current_wrapped_rad, 2 * M_PI, -2 * M_PI, delta
+  );
 
   // Add the corrected delta to the total rotation
   total_rotation += delta;
@@ -68,7 +75,8 @@ CallbackReturn TopicBasedSystem::on_init(const hardware_interface::HardwareInfo&
     return CallbackReturn::ERROR;
   }
 
-  // Initialize storage for all joints' standard interfaces, regardless of their existence and set all values to nan
+  // Initialize storage for all joints' standard interfaces,
+  // regardless of their existence and set all values to nan
   joint_commands_.resize(standard_interfaces_.size());
   joint_states_.resize(standard_interfaces_.size());
   for (auto i = 0u; i < standard_interfaces_.size(); i++)
@@ -104,13 +112,17 @@ CallbackReturn TopicBasedSystem::on_init(const hardware_interface::HardwareInfo&
     if (joint.parameters.find("mimic") != joint.parameters.cend())
     {
       const auto mimicked_joint_it = std::find_if(
-          info_.joints.begin(), info_.joints.end(),
-          [&mimicked_joint = joint.parameters.at("mimic")](const hardware_interface::ComponentInfo& joint_info) {
+        info_.joints.begin(), info_.joints.end(),
+        [&mimicked_joint = joint.parameters.at("mimic")]
+          (const hardware_interface::ComponentInfo& joint_info) {
             return joint_info.name == mimicked_joint;
-          });
+          }
+      );
       if (mimicked_joint_it == info_.joints.cend())
       {
-        throw std::runtime_error(std::string("Mimicked joint '") + joint.parameters.at("mimic") + "' not found");
+        throw std::runtime_error(
+          std::string("Mimicked joint '") + joint.parameters.at("mimic") + "' not found"
+        );
       }
       MimicJoint mimic_joint;
       mimic_joint.joint_index = i;
@@ -125,13 +137,16 @@ CallbackReturn TopicBasedSystem::on_init(const hardware_interface::HardwareInfo&
     }
   }
 
-  const auto get_hardware_parameter = [this](const std::string& parameter_name, const std::string& default_value) {
-    if (auto it = info_.hardware_parameters.find(parameter_name); it != info_.hardware_parameters.end())
-    {
-      return it->second;
-    }
-    return default_value;
-  };
+  const auto get_hardware_parameter =
+    [this](const std::string& parameter_name, const std::string& default_value) {
+      if (
+        auto it = info_.hardware_parameters.find(parameter_name);
+        it != info_.hardware_parameters.end()
+      ) {
+        return it->second;
+      }
+      return default_value;
+    };
 
   // Add random ID to prevent warnings about multiple publishers within the same node
   rclcpp::NodeOptions options;
@@ -139,8 +154,10 @@ CallbackReturn TopicBasedSystem::on_init(const hardware_interface::HardwareInfo&
 
   node_ = rclcpp::Node::make_shared("_", options);
 
-  if (auto it = info_.hardware_parameters.find("trigger_joint_command_threshold"); it != info_.hardware_parameters.end())
-  {
+  if (
+    auto it = info_.hardware_parameters.find("trigger_joint_command_threshold");
+    it != info_.hardware_parameters.end()
+  ) {
     trigger_joint_command_threshold_ = std::stod(it->second);
   }
 
@@ -148,9 +165,13 @@ CallbackReturn TopicBasedSystem::on_init(const hardware_interface::HardwareInfo&
       get_hardware_parameter("joint_commands_topic", "/robot_joint_commands"), rclcpp::QoS(1));
   topic_based_joint_states_subscriber_ = node_->create_subscription<sensor_msgs::msg::JointState>(
       get_hardware_parameter("joint_states_topic", "/robot_joint_states"), rclcpp::SensorDataQoS(),
-      [this](const sensor_msgs::msg::JointState::SharedPtr joint_state) { latest_joint_state_ = *joint_state; });
+      [this](const sensor_msgs::msg::JointState::SharedPtr joint_state){
+        latest_joint_state_ = *joint_state;
+      }
+  );
 
-  // if the values on the `joint_states_topic` are wrapped between -2*pi and 2*pi (like they are in Isaac Sim)
+  // if the values on the `joint_states_topic` are wrapped between -2*pi and 2*pi
+  // (like they are in Isaac Sim)
   // sum the total joint rotation returned on the `joint_states_` interface
   if (get_hardware_parameter("sum_wrapped_joint_states", "false") == "true")
   {
@@ -201,8 +222,10 @@ std::vector<hardware_interface::CommandInterface> TopicBasedSystem::export_comma
   return command_interfaces;
 }
 
-hardware_interface::return_type TopicBasedSystem::read(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/)
-{
+hardware_interface::return_type TopicBasedSystem::read(
+  const rclcpp::Time& /*time*/,
+  const rclcpp::Duration& /*period*/
+) {
   if (rclcpp::ok())
   {
     rclcpp::spin_some(node_);
@@ -213,16 +236,21 @@ hardware_interface::return_type TopicBasedSystem::read(const rclcpp::Time& /*tim
     const auto& joints = info_.joints;
     auto it = std::find_if(joints.begin(), joints.end(),
                            [&joint_name = std::as_const(latest_joint_state_.name[i])](
-                               const hardware_interface::ComponentInfo& info) { return joint_name == info.name; });
+                               const hardware_interface::ComponentInfo& info) {
+                                 return joint_name == info.name;
+                               }
+    );
+
     if (it != joints.end())
     {
       auto j = static_cast<std::size_t>(std::distance(joints.begin(), it));
       if (sum_wrapped_joint_states_)
       {
-        sumRotationFromMinus2PiTo2Pi(latest_joint_state_.position[i], joint_states_[POSITION_INTERFACE_INDEX][j]);
-      }
-      else
-      {
+        sumRotationFromMinus2PiTo2Pi(
+          latest_joint_state_.position[i],
+          joint_states_[POSITION_INTERFACE_INDEX][j]
+        );
+      } else {
         joint_states_[POSITION_INTERFACE_INDEX][j] = latest_joint_state_.position[i];
       }
       if (!latest_joint_state_.velocity.empty())
@@ -240,7 +268,8 @@ hardware_interface::return_type TopicBasedSystem::read(const rclcpp::Time& /*tim
   {
     for (auto& joint_state : joint_states_)
     {
-      joint_state[mimic_joint.joint_index] = mimic_joint.multiplier * joint_state[mimic_joint.mimicked_joint_index];
+      joint_state[mimic_joint.joint_index] =
+        mimic_joint.multiplier * joint_state[mimic_joint.mimicked_joint_index];
     }
   }
 
@@ -248,10 +277,11 @@ hardware_interface::return_type TopicBasedSystem::read(const rclcpp::Time& /*tim
 }
 
 template <typename HandleType>
-bool TopicBasedSystem::getInterface(const std::string& name, const std::string& interface_name,
-                                    const size_t vector_index, std::vector<std::vector<double>>& values,
-                                    std::vector<HandleType>& interfaces)
-{
+bool TopicBasedSystem::getInterface(
+  const std::string& name, const std::string& interface_name,
+  const size_t vector_index, std::vector<std::vector<double>>& values,
+  std::vector<HandleType>& interfaces
+) {
   auto it = std::find(standard_interfaces_.begin(), standard_interfaces_.end(), interface_name);
   if (it != standard_interfaces_.end())
   {
@@ -262,14 +292,20 @@ bool TopicBasedSystem::getInterface(const std::string& name, const std::string& 
   return false;
 }
 
-hardware_interface::return_type TopicBasedSystem::write(const rclcpp::Time& /*time*/, const rclcpp::Duration& /*period*/)
-{
-  // To avoid spamming TopicBased's joint command topic we check the difference between the joint states and
+hardware_interface::return_type TopicBasedSystem::write(
+  const rclcpp::Time& /*time*/,
+  const rclcpp::Duration& /*period*/
+) {
+  // To avoid spamming TopicBased's joint command topic
+  // we check the difference between the joint states and
   // the current joint commands, if it's smaller than a threshold we don't publish it.
   const auto diff = std::transform_reduce(
-      joint_states_[POSITION_INTERFACE_INDEX].cbegin(), joint_states_[POSITION_INTERFACE_INDEX].cend(),
+      joint_states_[POSITION_INTERFACE_INDEX].cbegin(),
+      joint_states_[POSITION_INTERFACE_INDEX].cend(),
       joint_commands_[POSITION_INTERFACE_INDEX].cbegin(), 0.0,
-      [](const auto d1, const auto d2) { return std::abs(d1) + std::abs(d2); }, std::minus<double>{});
+      [](const auto d1, const auto d2) { return std::abs(d1) + std::abs(d2); },
+      std::minus<double>{}
+  );
   if (diff <= trigger_joint_command_threshold_)
   {
     return hardware_interface::return_type::OK;
@@ -286,19 +322,15 @@ hardware_interface::return_type TopicBasedSystem::write(const rclcpp::Time& /*ti
       if (interface.name == hardware_interface::HW_IF_POSITION)
       {
         joint_state.position.push_back(joint_commands_[POSITION_INTERFACE_INDEX][i]);
-      }
-      else if (interface.name == hardware_interface::HW_IF_VELOCITY)
-      {
+      } else if (interface.name == hardware_interface::HW_IF_VELOCITY) {
         joint_state.velocity.push_back(joint_commands_[VELOCITY_INTERFACE_INDEX][i]);
-      }
-      else if (interface.name == hardware_interface::HW_IF_EFFORT)
-      {
+      } else if (interface.name == hardware_interface::HW_IF_EFFORT) {
         joint_state.effort.push_back(joint_commands_[EFFORT_INTERFACE_INDEX][i]);
-      }
-      else
-      {
-        RCLCPP_WARN_ONCE(node_->get_logger(), "Joint '%s' has unsupported command interfaces found: %s.",
-                         info_.joints[i].name.c_str(), interface.name.c_str());
+      } else {
+        RCLCPP_WARN_ONCE(
+          node_->get_logger(),
+          "Joint '%s' has unsupported command interfaces found: %s.",
+          info_.joints[i].name.c_str(), interface.name.c_str());
       }
     }
   }
@@ -311,14 +343,10 @@ hardware_interface::return_type TopicBasedSystem::write(const rclcpp::Time& /*ti
       {
         joint_state.position[mimic_joint.joint_index] =
             mimic_joint.multiplier * joint_state.position[mimic_joint.mimicked_joint_index];
-      }
-      else if (interface.name == hardware_interface::HW_IF_VELOCITY)
-      {
+      } else if (interface.name == hardware_interface::HW_IF_VELOCITY) {
         joint_state.velocity[mimic_joint.joint_index] =
             mimic_joint.multiplier * joint_state.velocity[mimic_joint.mimicked_joint_index];
-      }
-      else if (interface.name == hardware_interface::HW_IF_EFFORT)
-      {
+      } else if (interface.name == hardware_interface::HW_IF_EFFORT) {
         joint_state.effort[mimic_joint.joint_index] =
             mimic_joint.multiplier * joint_state.effort[mimic_joint.mimicked_joint_index];
       }
@@ -335,4 +363,7 @@ hardware_interface::return_type TopicBasedSystem::write(const rclcpp::Time& /*ti
 }  // end namespace topic_based_ros2_control
 
 #include "pluginlib/class_list_macros.hpp"
-PLUGINLIB_EXPORT_CLASS(topic_based_ros2_control::TopicBasedSystem, hardware_interface::SystemInterface)
+PLUGINLIB_EXPORT_CLASS(
+  topic_based_ros2_control::TopicBasedSystem,
+  hardware_interface::SystemInterface
+)
