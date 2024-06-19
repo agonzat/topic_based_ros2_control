@@ -26,12 +26,13 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+#include <gtest/gtest.h>
+
 #include <cmath>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include <gtest/gtest.h>
 #include <hardware_interface/resource_manager.hpp>
 #include <rclcpp/utilities.hpp>
 #include <rclcpp_lifecycle/state.hpp>
@@ -40,7 +41,7 @@
 TEST(TestTopicBasedSystem, load_topic_based_system_2dof)
 {
   const std::string hardware_system_2dof_standard_interfaces_with_topic_based =
-      R"(
+    R"(
   <ros2_control name="TopicBasedSystem2dof" type="system">
     <hardware>
       <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
@@ -61,12 +62,13 @@ TEST(TestTopicBasedSystem, load_topic_based_system_2dof)
     </joint>
   </ros2_control>
 )";
-  auto urdf = ros2_control_test_assets::urdf_head + hardware_system_2dof_standard_interfaces_with_topic_based +
-              ros2_control_test_assets::urdf_tail;
+  auto urdf = ros2_control_test_assets::urdf_head +
+    hardware_system_2dof_standard_interfaces_with_topic_based +
+    ros2_control_test_assets::urdf_tail;
   ASSERT_NO_THROW(hardware_interface::ResourceManager rm(urdf, true, false));
 }
 
-int main(int argc, char** argv)
+int main(int argc, char ** argv)
 {
   testing::InitGoogleTest(&argc, argv);
   rclcpp::init(argc, argv);

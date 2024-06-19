@@ -56,20 +56,20 @@ using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface
 class TopicBasedSystem : public hardware_interface::SystemInterface
 {
 public:
-  CallbackReturn on_init(const hardware_interface::HardwareInfo& info) override;
+  CallbackReturn on_init(const hardware_interface::HardwareInfo & info) override;
 
   std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
 
   std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
 
   hardware_interface::return_type read(
-    const rclcpp::Time& time,
-    const rclcpp::Duration& period
+    const rclcpp::Time & time,
+    const rclcpp::Duration & period
   ) override;
 
   hardware_interface::return_type write(
-    const rclcpp::Time& /*time*/,
-    const rclcpp::Duration& /*period*/
+    const rclcpp::Time & /*time*/,
+    const rclcpp::Duration & /*period*/
   ) override;
 
 private:
@@ -78,13 +78,13 @@ private:
   rclcpp::Publisher<JointState>::SharedPtr topic_based_joint_commands_publisher_;
   rclcpp::Node::SharedPtr node_;
   JointState latest_joint_state_;
-  bool sum_wrapped_joint_states_{ false };
+  bool sum_wrapped_joint_states_{false};
 
   /// Use standard interfaces for joints because they are relevant for dynamic behavior
-  std::array<std::string, 4> standard_interfaces_ = { hardware_interface::HW_IF_POSITION,
-                                                      hardware_interface::HW_IF_VELOCITY,
-                                                      hardware_interface::HW_IF_ACCELERATION,
-                                                      hardware_interface::HW_IF_EFFORT };
+  std::array<std::string, 4> standard_interfaces_ = {hardware_interface::HW_IF_POSITION,
+    hardware_interface::HW_IF_VELOCITY,
+    hardware_interface::HW_IF_ACCELERATION,
+    hardware_interface::HW_IF_EFFORT};
 
   struct MimicJoint
   {
@@ -102,13 +102,13 @@ private:
   // the joint command will not be published.
   double trigger_joint_command_threshold_ = 1e-5;
 
-  template <typename HandleType>
+  template<typename HandleType>
   bool getInterface(
-    const std::string& name,
-    const std::string& interface_name,
+    const std::string & name,
+    const std::string & interface_name,
     const size_t vector_index,
-    std::vector<std::vector<double>>& values,
-    std::vector<HandleType>& interfaces
+    std::vector<std::vector<double>> & values,
+    std::vector<HandleType> & interfaces
   );
 };
 
